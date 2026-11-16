@@ -98,6 +98,11 @@ namespace CppAst
         /// </summary>
         public CppFunctionFlags Flags { get; set; }
 
+        /// <summary>
+        /// Gets or sets a value indicating whether this function was declared as a friend inside a class.
+        /// </summary>
+        public bool IsFriend { get; set; }
+
         public bool IsCxxClassMethod => ((int)Flags & (int)CppFunctionFlags.Method) != 0;
 
         public bool IsPureVirtual => ((int)Flags & (int)CppFunctionFlags.Pure) != 0;

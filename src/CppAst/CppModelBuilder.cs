@@ -482,6 +482,23 @@ namespace CppAst
                     element = VisitNamespace(cursor, data);
                     break;
 
+                case CXCursorKind.CXCursor_FriendDecl:
+                    // A friend function (often an inline operator) belongs to the enclosing namespace.
+                    cursor.VisitChildren((child, friendDecl, clientData) =>
+                    {
+                        if (child.Kind == CXCursorKind.CXCursor_FunctionDecl)
+                        {
+                            var friend = VisitFunctionDecl(child, friendDecl, data);
+                            if (friend != null)
+                            {
+                                friend.IsFriend = true;
+                                AssignSourceSpan(child, friend);
+                            }
+                        }
+                        return CXChildVisitResult.CXChildVisit_Continue;
+                    }, new CXClientData((IntPtr)data));
+                    break;
+
                 case CXCursorKind.CXCursor_ClassTemplate:
                 case CXCursorKind.CXCursor_ClassDecl:
                 case CXCursorKind.CXCursor_StructDecl:
@@ -2185,6 +2202,9 @@ namespace CppAst
 
                 case CXTypeKind.CXType_LValueReference:
                     return new CppReferenceType(GetCppType(type.PointeeType.Declaration, type.PointeeType, parent, data));
+
+                case CXTypeKind.CXType_RValueReference:
+                    return new CppReferenceType(GetCppType(type.PointeeType.Declaration, type.PointeeType, parent, data)) { IsRValue = true };
 
                 case CXTypeKind.CXType_Record:
                     return VisitClassDecl(cursor, data);

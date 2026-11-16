@@ -19,6 +19,11 @@ namespace CppAst
         {
         }
 
+        /// <summary>
+        /// Gets or sets a value indicating whether this is an rvalue reference (<c>T&amp;&amp;</c>).
+        /// </summary>
+        public bool IsRValue { get; set; }
+
         /// <inheritdoc />
         public override int SizeOf
         {
@@ -29,14 +34,14 @@ namespace CppAst
         /// <inheritdoc />
         public override string ToString()
         {
-            return $"{ElementType.GetDisplayName()}&";
+            return IsRValue ? $"{ElementType.GetDisplayName()}&&" : $"{ElementType.GetDisplayName()}&";
         }
 
         /// <inheritdoc />
         public override CppType GetCanonicalType()
         {
             var elementTypeCanonical = ElementType.GetCanonicalType();
-            return ReferenceEquals(elementTypeCanonical, ElementType) ? this : new CppReferenceType(elementTypeCanonical);
+            return ReferenceEquals(elementTypeCanonical, ElementType) ? this : new CppReferenceType(elementTypeCanonical) { IsRValue = IsRValue };
         }
     }
 }
