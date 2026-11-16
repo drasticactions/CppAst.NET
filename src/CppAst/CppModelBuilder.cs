@@ -410,8 +410,8 @@ namespace CppAst
                     }
                 }
 
-                // Force assign source span as early as possible
-                AssignSourceSpan(cursor, cppStruct);
+                // A definition overrides the span of an earlier forward declaration
+                AssignSourceSpan(cursor, cppStruct, force: true);
 
                 _currentClassBeingVisited = saveCurrentClassBeingVisited;
             }
@@ -664,9 +664,13 @@ namespace CppAst
 
             if (element != null) 
             {
-                if (element.SourceFile is null || IsCursorDefinition(cursor, element))
+                if (element.SourceFile is null)
                 {
                     AssignSourceSpan(cursor, element);
+                }
+                else if (IsCursorDefinition(cursor, element))
+                {
+                    AssignSourceSpan(cursor, element, force: true);
                 }
             }
 
@@ -1054,11 +1058,11 @@ namespace CppAst
             }
         }
 
-        private static void AssignSourceSpan(CXCursor cursor, CppElement element)
+        private static void AssignSourceSpan(CXCursor cursor, CppElement element, bool force = false)
         {
             var start = cursor.Extent.Start;
             var end = cursor.Extent.End;
-            if (element.Span.Start.File is null)
+            if (force || element.Span.Start.File is null)
                 element.Span = new CppSourceSpan(GetSourceLocation(start), GetSourceLocation(end));
         }
 
@@ -2224,7 +2228,15 @@ namespace CppAst
                         var templateParameters = ParseTemplateSpecializedArguments(cursor, type, new CXClientData((IntPtr)data));
                         if (templateParameters != null)
                         {
-                            cppUnexposedType.TemplateParameters.AddRange(templateParameters);
+                            // A template argument can be a declaration that already has a parent container
+                            // (for example a class declared earlier in the TU). Such types cannot be re-parented.
+                            foreach (var templateParameter in templateParameters)
+                            {
+                                if (templateParameter.Parent == null)
+                                {
+                                    cppUnexposedType.TemplateParameters.Add(templateParameter);
+                                }
+                            }
                         }
                         return cppUnexposedType;
                     }
