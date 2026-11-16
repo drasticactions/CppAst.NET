@@ -128,5 +128,10 @@ namespace CppAst
         /// A 16 bits brain float type.
         /// </summary>
         BFloat16,
+
+        /// <summary>
+        /// `signed char` type, distinct from `char`.
+        /// </summary>
+        SignedChar,
     }
 }

@@ -2062,6 +2062,13 @@ namespace CppAst
                 return (CppType)containerContext.Container;
             }
 
+            // A typedef that was never visited (for example size_t or int8_t from a system header that is not parsed)
+            // keeps its name instead of collapsing to the canonical type.
+            if (cursor.Kind == CXCursorKind.CXCursor_TypedefDecl || cursor.Kind == CXCursorKind.CXCursor_TypeAliasDecl)
+            {
+                return VisitTypeDefDecl(cursor, data);
+            }
+
             // TODO: Pseudo fix, we are not supposed to land here, as the TryGet before should resolve an existing type already declared (but not necessarily defined)
             return GetCppType(type.CanonicalType.Declaration, type.CanonicalType, parent, data);
         }
@@ -2143,7 +2150,7 @@ namespace CppAst
                     return CppPrimitiveType.UnsignedLongLong;
 
                 case CXTypeKind.CXType_SChar:
-                    return CppPrimitiveType.Char;
+                    return CppPrimitiveType.SignedChar;
 
                 case CXTypeKind.CXType_Char_S:
                     return CppPrimitiveType.Char;
