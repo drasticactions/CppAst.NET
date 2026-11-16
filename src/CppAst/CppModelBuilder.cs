@@ -2346,6 +2346,19 @@ namespace CppAst
                 return isParsingParameter ? CXChildVisitResult.CXChildVisit_Continue : CXChildVisitResult.CXChildVisit_Recurse;
             }, new CXClientData((IntPtr)data));
 
+            // A function type without parameter declarations (for example the R(A...) argument of std::function<R(A...)>)
+            // has no ParmDecl children; take the parameter types from the type itself.
+            if (type.NumArgTypes > 0 && cppFunction.Parameters.Count != type.NumArgTypes)
+            {
+                cppFunction.Parameters.Clear();
+                for (uint i = 0; i < type.NumArgTypes; i++)
+                {
+                    var argType = type.GetArgType(i);
+                    var cppType = GetCppType(argType.Declaration, argType, cursor, data);
+                    cppFunction.Parameters.Add(new CppParameter(cppType, string.Empty));
+                }
+            }
+
             return cppFunction;
         }
 
