@@ -1688,9 +1688,14 @@ namespace CppAst
                         cppFunction.Parameters.Add(parameter);
 
                         // Visit default parameter value
-                        VisitInitValue(argCursor, data, out var paramExpr, out var paramValue, afterName: true);
-                        parameter.InitValue = paramValue;
-                        parameter.InitExpression = paramExpr;
+                        // Only a parameter with a default argument has an init value; other expressions under it are
+                        // template arguments of its type (TArray<T, true>).
+                        if (argCursor.HasDefaultArg)
+                        {
+                            VisitInitValue(argCursor, data, out var paramExpr, out var paramValue, afterName: true);
+                            parameter.InitValue = paramValue;
+                            parameter.InitExpression = paramExpr;
+                        }
 
                         i++;
                         break;
