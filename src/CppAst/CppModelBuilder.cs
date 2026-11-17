@@ -297,6 +297,44 @@ namespace CppAst
                                         cppClass.TemplateSpecializedArguments.Add(new CppTemplateArgument(tempParams[(int)i], arg.AsIntegral));
                                     }
                                     break;
+                                case CXTemplateArgumentKind.CXTemplateArgumentKind_Pack:
+                                    {
+                                        // A parameter pack (std::tuple<A, B>): one argument per element.
+                                        for (uint j = 0; j < (uint)arg.NumPackElements; j++)
+                                        {
+                                            var element = arg.GetPackElement(j);
+                                            if (element.kind == CXTemplateArgumentKind.CXTemplateArgumentKind_Type)
+                                            {
+                                                var elementType = element.AsType;
+                                                cppClass.TemplateSpecializedArguments.Add(new CppTemplateArgument(tempParams[(int)i], GetCppType(elementType.Declaration, elementType, cursor, data), elementType.TypeClass != CX_TypeClass.CX_TypeClass_TemplateTypeParm));
+                                            }
+                                            else if (element.kind == CXTemplateArgumentKind.CXTemplateArgumentKind_Integral)
+                                            {
+                                                cppClass.TemplateSpecializedArguments.Add(new CppTemplateArgument(tempParams[(int)i], element.AsIntegral));
+                                            }
+                                            else
+                                            {
+                                                cppClass.TemplateSpecializedArguments.Add(new CppTemplateArgument(tempParams[(int)i], element.ToString()));
+                                            }
+                                        }
+                                    }
+                                    break;
+                                case CXTemplateArgumentKind.CXTemplateArgumentKind_Invalid when tempArgsCount == 1 && cursor.Type.NumTemplateArguments > 0:
+                                    {
+                                        // libclang reports a class's parameter pack (std::tuple<A, B>) as invalid; its type lists the elements.
+                                        var type = cursor.Type;
+                                        for (uint j = 0; j < (uint)type.NumTemplateArguments; j++)
+                                        {
+                                            var elementType = clang.Type_getTemplateArgumentAsType(type, j);
+                                            if (elementType.kind == CXTypeKind.CXType_Invalid)
+                                            {
+                                                cppClass.TemplateSpecializedArguments.Add(new CppTemplateArgument(tempParams[(int)i], "?"));
+                                                continue;
+                                            }
+                                            cppClass.TemplateSpecializedArguments.Add(new CppTemplateArgument(tempParams[(int)i], GetCppType(elementType.Declaration, elementType, cursor, data), elementType.TypeClass != CX_TypeClass.CX_TypeClass_TemplateTypeParm));
+                                        }
+                                    }
+                                    break;
                                 default:
                                     {
                                         RootCompilation.Diagnostics.Warning($"Unhandled template argument with type {arg.kind}: {cursor.Kind}/{CXUtil.GetCursorSpelling(cursor)}", GetSourceLocation(cursor.Location));
@@ -1180,13 +1218,20 @@ namespace CppAst
             ParseAttributes(cursor, cppField, true);
         }
 
-        private void VisitInitValue(CXCursor cursor, void* data, out CppExpression expression, out CppValue value)
+        private void VisitInitValue(CXCursor cursor, void* data, out CppExpression expression, out CppValue value, bool afterName = false)
         {
             CppExpression localExpression = null;
             CppValue localValue = null;
+            cursor.Location.GetFileLocation(out _, out _, out _, out var nameOffset);
 
             cursor.VisitChildren((initCursor, varCursor, clientData) =>
             {
+                // A parameter's default argument follows its name; expressions before it are template arguments of its type.
+                if (afterName)
+                {
+                    initCursor.Extent.Start.GetFileLocation(out _, out _, out _, out var exprOffset);
+                    if (exprOffset < nameOffset) return CXChildVisitResult.CXChildVisit_Continue;
+                }
                 if (IsExpression(initCursor))
                 {
                     localExpression = VisitExpression(initCursor, clientData);
@@ -1643,7 +1688,7 @@ namespace CppAst
                         cppFunction.Parameters.Add(parameter);
 
                         // Visit default parameter value
-                        VisitInitValue(argCursor, data, out var paramExpr, out var paramValue);
+                        VisitInitValue(argCursor, data, out var paramExpr, out var paramValue, afterName: true);
                         parameter.InitValue = paramValue;
                         parameter.InitExpression = paramExpr;
 
